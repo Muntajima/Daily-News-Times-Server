@@ -4,7 +4,7 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
 
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId, MongoCryptAzureKMSRequestError } = require('mongodb');
 
 //middlewear
 app.use(cors());
@@ -28,7 +28,38 @@ async function run() {
     await client.connect();
     //news apis
     const newsCollection = client.db('newsDB').collection('news');
+    const userCollection = client.db('newsDB').collection('users');
 
+    // users db
+    app.get('/users', async(req, res) =>{
+      const cursor = userCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
+    app.post('/users', async(req, res) =>{
+      const newUser = req.body;
+      console.log('new user: ', newUser);
+
+      const query = {email: newUser.email}
+      const existingUser = await userCollection.findOne(query)
+      if(existingUser) {
+        returnres.send({message: "User already existed", insertedId: null})
+      }
+      const result = await userCollection.insertOne(newUser);
+      res.send(result);
+    })
+
+    app.patch('/users/:id/make-admin', async(req, res) =>{
+      const userId = req.params.id;
+      const result = await userCollection.updateOne(
+        {_id: new ObjectId(userId)},
+        {$set: {role: 'admin'}}
+      );
+      res.send(result);
+    })
+
+    //news apis
     app.get('/news', async(req, res) =>{
         const result = await newsCollection.find().toArray();
         res.send(result);
