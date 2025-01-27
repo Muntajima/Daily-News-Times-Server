@@ -62,6 +62,19 @@ async function run() {
       );
       res.send(result);
     })
+    app.get('/adminUser', async(req, res) =>{
+      const email = req.query.email;
+      try{
+        const user = await userCollection.findOne({email});
+        if(!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json(user)
+      }
+      catch (error) {
+        res.status(500).json({ error: "Error fetching user" });
+      }
+    });
 
     //news apis
     app.get('/news', async (req, res) => {
