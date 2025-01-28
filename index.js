@@ -40,8 +40,25 @@ async function run() {
       res.send({ token });
     });
 
+    // Middleware
+    const verifyToken = (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+      const token = authHeader.split(" ")[1];
+      jwt.verify(token, process.env.SECURITY_PASS, (err, decoded) =>{
+        if(err){
+          return res.status(401).json({ message: "Forbidden access!" });
+        }
+        req.decoded = decoded;
+        next();
+      })
+    }
+
     // users db
     app.get('/users', async (req, res) => {
+      console.log(req.headers);
       const cursor = userCollection.find();
       const result = await cursor.toArray();
       res.send(result);
