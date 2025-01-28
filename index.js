@@ -2,6 +2,7 @@ require('dotenv').config()
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000;
 const UserModel = require('./models/User');
 
@@ -13,8 +14,6 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.oi99s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-console.log(process.env.DB_USER, process.env.DB_PASS)
-
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -23,7 +22,7 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
-console.log("Database URI:", uri);
+//console.log("Database URI:", uri);
 async function run() {
   try {
     await client.connect();
@@ -33,6 +32,13 @@ async function run() {
     const newsCollection = db.collection('news');
     const userCollection = db.collection('users');
     const publisherCollection = db.collection('publishers');
+
+    //create jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.SECURITY_PASS, { expiresIn: "1h" });
+      res.send({ token });
+    });
 
     // users db
     app.get('/users', async (req, res) => {
@@ -329,7 +335,31 @@ async function run() {
       res.send(result);
 
     });
-   
+    
+    //update my profile
+    app.put('/users', async (req, res) => {
+      const { userId, displayName, photoURL } = req.body;
+     
+      console.log(req.body)
+         
+      try {
+        const updatedUser = await userCollection.updateOne(
+          { _id: new ObjectId(userId) },
+          { $set: { displayName, photoURL } }
+          
+        );
+    
+        if (!updatedUser) {
+          return res.status(404).json({ error: "User not found" });
+        }
+    
+        res.send(updatedUser);
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+     
     //admin stats
     app.get('/admin-stats', async(req, res) =>{
       try {
@@ -348,6 +378,33 @@ async function run() {
       const result = await newsCollection.find().toArray();
       res.send(result);
     })
+    //for line chart
+    app.get('/news/authors-with-news', async (req, res) => {
+      try {
+        const authorNewsCount = await userCollection.aggregate([
+          {
+            $lookup: {
+              from: 'news', // The name of the news collection
+              localField: 'email',
+              foreignField: 'authorEmail',
+              as: 'authorNews',
+            },
+          },
+          {
+            $project: {
+              name: 1,
+              email: 1,
+              newsCount: { $size: '$authorNews' },
+            },
+          },
+        ]).toArray();
+    
+        res.status(200).json(authorNewsCount);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error fetching author data' });
+      }
+    });
 
     // // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
