@@ -56,8 +56,32 @@ async function run() {
       })
     }
 
+    const verifyAdmin = async (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+      const token = authHeader.split(" ")[1];
+
+      try {
+        const decoded = jwt.verify(token, process.env.secret_key);
+        req.user = decoded;
+
+        const user = await userCollection.findOne({ email: req.decoded.email });
+        if (!user || user.role !== "admin") {
+          return res
+            .status(403)
+            .send({ message: "Forbidden access: Admins only" });
+        }
+
+        next();
+      } catch (error) {
+        res.status(403).json({ message: "Invalid or expired token" });
+      }
+    };
+
     // users db
-    app.get('/users', async (req, res) => {
+    app.get('/users',  async (req, res) => {
       console.log(req.headers);
       const cursor = userCollection.find();
       const result = await cursor.toArray();
@@ -77,7 +101,7 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('/users/:id/make-admin', async (req, res) => {
+    app.patch('/users/:id/make-admin', verifyAdmin, verifyToken, async (req, res) => {
       const userId = req.params.id;
       const result = await userCollection.updateOne(
         { _id: new ObjectId(userId) },
@@ -85,7 +109,7 @@ async function run() {
       );
       res.send(result);
     })
-    app.get('/adminUser', async(req, res) =>{
+    app.get('/adminUser',  async(req, res) =>{
       const email = req.query.email;
       try{
         const user = await userCollection.findOne({email});
@@ -113,7 +137,7 @@ async function run() {
     })
 
     //publisher api
-    app.get('/publishers', async (req, res) => {
+    app.get('/publishers',  async (req, res) => {
       const result = await publisherCollection.find().toArray();
       res.send(result);
     })
@@ -127,7 +151,7 @@ async function run() {
 
     //for all article all user
 
-    app.get('/news', async (req, res) => {
+    app.get('/news', verifyAdmin, async (req, res) => {
       const { search = "", publisher = "", tags = "" } = req.body.query;
 
       console.log("Query received:", req.query);
@@ -420,6 +444,36 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error fetching author data' });
+      }
+    });
+
+    //my article
+    app.get("/my-article", async (req, res) => {
+      const { email } = req.query;
+    
+      try {
+        const articles = await newsCollection.find({ authorEmail: email }).toArray();
+        res.send(articles);
+      } catch (error) {
+        console.error("Error fetching articles:", error);
+        res.status(500).send({ error: "Failed to fetch articles" });
+      }
+    });
+    
+    // Delete an article by ID
+    app.delete("/news/:id", async (req, res) => {
+      const { id } = req.params;
+    
+      try {
+        const result = await newsCollection.deleteOne({ _id: id });
+        if (result.deletedCount > 0) {
+          res.status(200).send({ message: "Article deleted successfully." });
+        } else {
+          res.status(404).send({ error: "Article not found." });
+        }
+      } catch (error) {
+        console.error("Error deleting article:", error);
+        res.status(500).json({ error: "Failed to delete article" });
       }
     });
 
