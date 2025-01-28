@@ -25,7 +25,7 @@ const client = new MongoClient(uri, {
 //console.log("Database URI:", uri);
 async function run() {
   try {
-    await client.connect();
+    //await client.connect();
     //news apis
     const db = client.db('newsDB');
     const userModel = new UserModel(db);
@@ -477,9 +477,35 @@ async function run() {
       }
     });
 
+    // Update article by ID
+app.put("/news/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, description, isPremium } = req.body;
+console.log(title, description)
+  try {
+    // Find and update the article
+    const result = await newsCollection.updateOne(
+      { _id: new ObjectId(id) },  
+      {
+        $set: { 
+          title,
+          description,
+          isPremium,
+        },
+      }
+    );
+    res.send(result);
+
+   
+  } catch (error) {
+    console.error("Error updating article:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
     // // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   }
   catch (error) {
     console.error("Error connecting to MongoDB:", error);
